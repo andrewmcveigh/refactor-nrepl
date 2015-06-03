@@ -117,9 +117,7 @@ The return value is a stream of occurrences under the key `occurrence` which is 
 
 `(:line-beg 5 :line-end 5 :col-beg 19 :col-end 26 :name a-name :file \"/aboslute/path/to/file.clj\" :match (fn-name some args))`
 
-When the fine `occurrence` has been send a final message is sent with `count`, indicating the total number of matches, and `status` `done`.
-
-In the event of an error the key `error` will contain a message which is intended for display to the user.
+When the final `occurrence` has been sent a final message is sent with `count`, indicating the total number of matches, and `status` `done`.
 
 #### find usages (application of find symbols)
 
@@ -294,6 +292,7 @@ build.sh cleans, runs source-deps with the right parameters, runs the tests and 
 
 ## Changelog
 
+* Make `find-symbol` able to handle macros
 * Add `rename-file-or-dir` which returns a file or a directory of clj files.
 * Add `extract-definition` which returns enough information to the clien to afford inlining of defs defns and let-bound vars.
 * Add `stubs-for-interface` for creating skeleton interface implementations
