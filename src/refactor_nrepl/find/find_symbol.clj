@@ -57,7 +57,8 @@
                    (comp :end-line :env)
                    (comp :column :env)
                    (comp :end-column :env)
-                   pred))))
+                   pred))
+        (map #(zipmap [:line-beg :line-end :col-beg :col-end] %))))
   ([name asts pred]
    (find-nodes (map #(postwalk % (partial dissoc-macro-nodes name)) asts) pred)))
 
@@ -111,14 +112,15 @@
   (let [file-content (slurp file)
         locs (->> (ns-ast file-content)
                   (find-symbol-in-ast fully-qualified-name)
-                  (filter first))
+                  (filter :line-beg))
         gather (fn [info]
-                 (conj info
-                       (.getCanonicalPath file)
-                       (match file-content
-                         (first info)
-                         (second info))))]
-    (when (seq locs) (map gather locs))))
+                 (merge info
+                        {:file (.getCanonicalPath file)
+                         :name fully-qualified-name
+                         :match (match file-content
+                                  (:line-beg info)
+                                  (:line-end  info))}))]
+    (map gather locs)))
 
 (defn- find-global-symbol [file ns var-name clj-dir]
   (let [dir (or clj-dir ".")
@@ -155,29 +157,30 @@
                                 (filter (partial util/node-at-loc? line column))
                                 first
                                 :name)]
-        (map #(conj (vec (take 4 %))
-                    var-name
-                    (.getCanonicalPath (java.io.File. file))
-                    (match file-content
-                      (first %)
-                      (second %)))
+        (map #(merge %
+                     {:name var-name
+                      :file (.getCanonicalPath (java.io.File. file))
+                      :match (match file-content
+                               (:line-beg %)
+                               (:line-end %))})
              (find-nodes var-name
                          [top-level-form-ast]
                          #(and (#{:local :binding} (:op %))
                                (= local-var-name (-> % :name))
                                (:local %))))))))
 
-(defn to-find-symbol-result
+(defn- to-find-symbol-result
   [{:keys [line-beg line-end col-beg col-end name file match]}]
   [line-beg line-end col-beg col-end name file match])
 
 (defn find-symbol [{:keys [file ns name dir line column]}]
   (util/throw-unless-clj-file file)
-  (or
-   ;; find-macro is first because find-global-symbol returns garb for macros
-   (some->> name find-macro (map to-find-symbol-result))
-   (and (seq file) (not-empty (find-local-symbol file name line column)))
-   (find-global-symbol file ns name dir)))
+  (map to-find-symbol-result
+       (or
+        ;; find-macro is first because find-global-symbol returns garb for macros
+        (some->> name find-macro)
+        (and (seq file) (not-empty (find-local-symbol file name line column)))
+        (find-global-symbol file ns name dir))))
 
 (defn create-result-alist
   [line-beg line-end col-beg col-end name file match]
@@ -190,6 +193,7 @@
         :match match))
 
 (defn find-debug-fns [{:keys [ns-string debug-fns]}]
-  (let [res  (-> ns-string ns-ast (find-invokes debug-fns))]
+  (let [res  (-> ns-string ns-ast (find-invokes debug-fns))
+        res (map to-find-symbol-result res)]
     (when (seq res)
       res)))
